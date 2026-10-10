@@ -260,6 +260,17 @@ body {
   font-weight: 600;
 }
 
+/* The uncertainty glow: its own WebGL canvas over the 3D view, added to the
+   image below and blurred into a bloom. It never takes pointer input. */
+.render-pane canvas.glow-canvas {
+  z-index: 1;
+  pointer-events: none;
+  mix-blend-mode: screen;
+  filter: blur(1.5px) brightness(1.2) saturate(1.25)
+    drop-shadow(0 0 12px rgb(255 70 30 / 0.75));
+  transition: opacity 0.2s;
+}
+
 /* Content sections */
 .content-section {
   padding: clamp(56px, 10vh, 112px) clamp(16px, 6vw, 88px);

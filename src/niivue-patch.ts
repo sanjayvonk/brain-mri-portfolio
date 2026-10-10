@@ -1,7 +1,7 @@
 // NiiVue's 3D shader accumulates overlay colour premultiplied by alpha, then
 // mixes it over the volume by alpha again. Opaque labels are unaffected, but
-// translucent overlays such as the uncertainty glow come out darker than the
-// tissue behind them. Dividing the alpha back out gives standard "over"
+// translucent overlays, such as the prediction below full opacity, come out
+// darker than the tissue behind them. Dividing the alpha back out gives standard "over"
 // compositing. The shader source is rewritten as it is compiled.
 const ORIGINAL = 'fColor.rgb = mix(fColor.rgb, colAcc.rgb, overMix);';
 const FIXED =

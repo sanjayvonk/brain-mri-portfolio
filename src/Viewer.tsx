@@ -95,6 +95,7 @@ export default function Viewer({
   const [hasFocus, setHasFocus] = useState(false);
   const [probe, setProbe] = useState<Probe | null>(null);
   const renderCanvas = useRef<HTMLCanvasElement>(null);
+  const glowCanvas = useRef<HTMLCanvasElement>(null);
   const sliceCanvas = useRef<HTMLCanvasElement>(null);
   const engines = useRef<{ render: Niivue; slices: Niivue } | null>(null);
   const focusRef = useRef<FocusController | null>(null);
@@ -107,13 +108,20 @@ export default function Viewer({
   useEffect(() => {
     let active = true;
     let allocated: { render: Niivue; slices: Niivue } | null = null;
+    let glow: Niivue | null = null;
     let focus: FocusController | null = null;
     async function setup() {
       const [{ Niivue }, { FocusController }] = await Promise.all([
         import('@niivue/niivue'),
         import('./focus-controller'),
       ]);
-      if (!active || !renderCanvas.current || !sliceCanvas.current) return;
+      if (
+        !active ||
+        !renderCanvas.current ||
+        !sliceCanvas.current ||
+        !glowCanvas.current
+      )
+        return;
       patchOverlayBlending();
       const common = {
         backColor: [0, 0, 0, 1] as [number, number, number, number],
@@ -166,15 +174,28 @@ export default function Viewer({
         B: [0, 19, 51, 111, 186, 243],
         A: [0, 0, 45, 125, 210, 255],
       });
-      // Red through orange to a hot, near-white core. The fade comes from the
-      // volume's alphaThreshold, so the colours stay bright at the edge.
-      render.addColormap('uncertaintyGlow', {
-        I: [0, 20, 70, 140, 210, 255],
-        R: [0, 220, 245, 255, 255, 255],
-        G: [0, 45, 65, 115, 185, 240],
-        B: [0, 35, 45, 60, 120, 205],
-        A: [0, 3, 28, 90, 165, 225],
+      // The uncertainty is drawn by its own engine on a transparent canvas
+      // over the 3D view. CSS adds it to the image (screen blend) and blurs it
+      // into a bloom, so uncertain regions light up the brain like a light
+      // source instead of being painted over it.
+      glow = new Niivue({
+        ...common,
+        backColor: [0, 0, 0, 0],
+        isOrientCube: false,
+        isClipAllVolumes: true,
       });
+      await glow.attachToCanvas(glowCanvas.current);
+      if (!active) return;
+      glow.setSliceType(4);
+      // Faint red through orange to a hot, near-white core.
+      glow.addColormap('uncertaintyGlow', {
+        I: [0, 25, 80, 150, 215, 255],
+        R: [0, 170, 235, 255, 255, 255],
+        G: [0, 25, 55, 110, 165, 205],
+        B: [0, 18, 30, 50, 95, 150],
+        A: [0, 4, 18, 45, 90, 140],
+      });
+      glow.setClipPlaneColor([0, 0, 0, 0]);
       render.setClipPlaneColor([0.7, 0.95, 0.82, -0.05]);
       slices.setCustomLayout(
         [0, 1, 2].map((sliceType, i) => ({
@@ -193,39 +214,31 @@ export default function Viewer({
           cal_max: displayMax.t1ce,
         },
       ];
-      const overlays = (in3d: boolean) =>
-        layerOrder.map((id) => {
-          const glow = in3d ? LAYERS[id].glow3d : undefined;
-          return glow
-            ? {
-                url: `${base}data/${glow.file}`,
-                colormap: glow.colormap,
-                // NiiVue draws overlay voxels opaque; alphaThreshold instead
-                // fades them in as (value / cal_min)^2, which makes the glow.
-                alphaThreshold: true,
-                cal_min: 90,
-                cal_max: 255,
-                opacity: 0,
-              }
-            : {
-                url: `${base}data/${LAYERS[id].file}`,
-                colormap: 'gray',
-                opacity: 0,
-              };
-        });
+      const overlays = layerOrder.map((id) => ({
+        url: `${base}data/${LAYERS[id].file}`,
+        colormap: 'gray',
+        opacity: 0,
+      }));
+      const glowFile = LAYERS.uncertainty.glow3d!;
       const loads = await Promise.allSettled([
-        render.loadVolumes([...scanVolume, ...overlays(true)]),
-        slices.loadVolumes([...scanVolume, ...overlays(false)]),
+        render.loadVolumes([...scanVolume, ...overlays]),
+        slices.loadVolumes([...scanVolume, ...overlays]),
+        glow.loadVolumes([
+          {
+            url: `${base}data/${glowFile.file}`,
+            colormap: glowFile.colormap,
+            cal_min: 1,
+            cal_max: 255,
+          },
+        ]),
       ]);
       const failed = loads.find((result) => result.status === 'rejected');
       if (failed?.status === 'rejected') throw failed.reason;
       if (!active) return;
       for (const nv of [render, slices]) {
-        layerOrder.forEach((id, i) => {
-          const layer = LAYERS[id];
-          if (nv !== render || !layer.glow3d)
-            nv.volumes[i + 1].setColormapLabel(layer.lut);
-        });
+        layerOrder.forEach((id, i) =>
+          nv.volumes[i + 1].setColormapLabel(LAYERS[id].lut),
+        );
         nv.updateGLVolume();
       }
       await render.setVolumeRenderIllumination(0.45);
@@ -238,6 +251,19 @@ export default function Viewer({
         setHasFocus(location.visible);
       });
       focusRef.current = focus;
+      // Keep the glow engine's camera and cut plane on the main 3D view's,
+      // after every frame the main view draws.
+      const glowEngine = glow;
+      const drawCore = render.drawSceneCore;
+      render.drawSceneCore = () => {
+        const result = drawCore.call(render);
+        glowEngine.scene.renderAzimuth = render.scene.renderAzimuth;
+        glowEngine.scene.renderElevation = render.scene.renderElevation;
+        glowEngine.scene.volScaleMultiplier = render.scene.volScaleMultiplier;
+        glowEngine.scene.pan2Dxyzmm = render.scene.pan2Dxyzmm;
+        glowEngine.setClipPlane(render.scene.clipPlaneDepthAziElevs[0]);
+        return result;
+      };
       engines.current = allocated;
       // Open on an axial level through the tumour.
       focus.reset([0.5, 0.5, 0.55]);
@@ -259,6 +285,7 @@ export default function Viewer({
       engines.current = null;
       allocated?.render.cleanup();
       allocated?.slices.cleanup();
+      glow?.cleanup();
     };
   }, [displayMax]);
 
@@ -338,9 +365,12 @@ export default function Viewer({
     if (!pair || !ready) return;
     for (const nv of [pair.render, pair.slices]) {
       layerOrder.forEach((id, i) => {
-        nv.volumes[i + 1].opacity = visible[id]
-          ? (overlayOpacity / 100) * LAYERS[id].weight
-          : 0;
+        // In 3D the uncertainty comes from the glow canvas instead.
+        const glows = nv === pair.render && LAYERS[id].glow3d;
+        nv.volumes[i + 1].opacity =
+          visible[id] && !glows
+            ? (overlayOpacity / 100) * LAYERS[id].weight
+            : 0;
       });
       nv.updateGLVolume();
     }
@@ -706,6 +736,14 @@ export default function Viewer({
               className="render-pane"
               style={{ display: mode === 'slices' ? 'none' : undefined }}
             >
+              <canvas
+                ref={glowCanvas}
+                className="glow-canvas"
+                aria-hidden
+                style={{
+                  opacity: visible.uncertainty ? overlayOpacity / 100 : 0,
+                }}
+              />
               <canvas
                 ref={renderCanvas}
                 aria-label="3D volume rendering of the MRI with the tumour overlays. Drag to rotate, scroll to zoom."

@@ -43,8 +43,8 @@ type Layer = {
   weight: number;
   lut: ReturnType<typeof lut>;
   /**
-   * The 3D view can draw a continuous volume instead, with its own colour
-   * map, for a soft glow rather than solid label surfaces.
+   * In 3D this layer is drawn as light instead: a continuous volume rendered
+   * by a separate engine and blended over the view (see Viewer).
    */
   glow3d?: { file: string; colormap: string };
   legend: { label: string; color: string }[];
