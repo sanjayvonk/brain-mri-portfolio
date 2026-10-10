@@ -1,0 +1,33 @@
+{
+  "case": "070",
+  "shape": [
+    128,
+    128,
+    155
+  ],
+  "voxel_mm": [
+    1.875,
+    1.875,
+    1.0
+  ],
+  "display_max": 1792.0,
+  "dice": {
+    "whole_tumour": 0.8449593446230972,
+    "tumour_core": 0.587027969682742,
+    "enhancing": 0.5169730087762875
+  },
+  "voxels": {
+    "predicted_tumour": 16210,
+    "ground_truth_tumour": 16504,
+    "uncertain": 74760,
+    "brain": 480830,
+    "uncertain_in_brain": 74697
+  },
+  "set_size_counts": {
+    "1": 2464760,
+    "2": 39666,
+    "3": 19961,
+    "4": 15133
+  },
+  "missed_tumour_in_uncertain_region": 0.964964591874767
+}
