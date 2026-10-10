@@ -110,7 +110,7 @@ export default function MissedSlice({
   const notes: Record<Panel['key'], string> = {
     scan: `Axial slice ${counts.z}. A glioma sits low in the right hemisphere: the bright region on the right of the brain.`,
     prediction: `The model labels only ${counts.found} of the ${counts.tumour} tumour voxels (${pct}%). The other ${counts.missed}, nearly the whole lesion, go undetected.`,
-    uncertainty: `Flags ${counts.caught === counts.missed ? 'all' : `${counts.caught} of the`} ${counts.missed} voxels the model missed. The lesion stands out as uncertain, even where the model called it healthy.`,
+    uncertainty: `The conformal uncertainty layer flags ${counts.caught === counts.missed ? 'all' : `${counts.caught} of the`} ${counts.missed} voxels the model missed. The lesion stands out as uncertain, even where the model called it healthy.`,
     truth: `The ground truth: ${counts.tumour} voxels of tumour, mostly necrotic core with edema and enhancing tumour around it. This is the lesion the model should have found.`,
   };
 
