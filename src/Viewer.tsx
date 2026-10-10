@@ -122,6 +122,8 @@ export default function Viewer({
       const render = new Niivue({
         ...common,
         isOrientCube: true,
+        // The cut plane removes the overlays too, not only the brain.
+        isClipAllVolumes: true,
         crosshairColor: [1, 0.77, 0.4, 0.85],
         crosshairWidth: 0.7,
         crosshairGap: 5,
