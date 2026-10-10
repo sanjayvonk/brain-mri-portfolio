@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Niivue } from '@niivue/niivue';
 import type { FocusController } from './focus-controller';
-import type { SlicePlanesController } from './slice-planes-controller';
 import {
   Box,
   Check,
@@ -77,7 +76,6 @@ export default function Viewer({
     PRESETS.uncertainty.layers,
   );
   const [overlayOpacity, setOverlayOpacity] = useState(75);
-  const [planes, setPlanes] = useState(false);
   const [cut, setCut] = useState(true);
   // Opens the volume through the tumour.
   const [depth, setDepth] = useState(-12);
@@ -91,20 +89,16 @@ export default function Viewer({
   const sliceCanvas = useRef<HTMLCanvasElement>(null);
   const engines = useRef<{ render: Niivue; slices: Niivue } | null>(null);
   const focusRef = useRef<FocusController | null>(null);
-  const planesRef = useRef<SlicePlanesController | null>(null);
 
   useEffect(() => {
     let active = true;
     let allocated: { render: Niivue; slices: Niivue } | null = null;
     let focus: FocusController | null = null;
-    let planeController: SlicePlanesController | null = null;
     async function setup() {
-      const [{ Niivue }, { FocusController }, { SlicePlanesController }] =
-        await Promise.all([
-          import('@niivue/niivue'),
-          import('./focus-controller'),
-          import('./slice-planes-controller'),
-        ]);
+      const [{ Niivue }, { FocusController }] = await Promise.all([
+        import('@niivue/niivue'),
+        import('./focus-controller'),
+      ]);
       if (!active || !renderCanvas.current || !sliceCanvas.current) return;
       const common = {
         backColor: [0, 0, 0, 1] as [number, number, number, number],
@@ -139,8 +133,6 @@ export default function Viewer({
       if (!active) return;
       await slices.attachToCanvas(sliceCanvas.current);
       if (!active) return;
-      planeController = new SlicePlanesController(render);
-      planesRef.current = planeController;
       render.setSliceType(4);
       render.setRenderAzimuthElevation(120, 14);
       render.setScale(1.05);
@@ -223,8 +215,6 @@ export default function Viewer({
     return () => {
       active = false;
       focus?.dispose();
-      planeController?.dispose();
-      planesRef.current = null;
       focusRef.current = null;
       engines.current = null;
       allocated?.render.cleanup();
@@ -270,13 +260,6 @@ export default function Viewer({
       nv.updateGLVolume();
     }
   }, [visible, overlayOpacity, ready]);
-
-  useEffect(() => {
-    const controller = planesRef.current;
-    if (!controller) return;
-    controller.enabled = planes;
-    engines.current?.render.drawScene();
-  }, [planes, ready]);
 
   useEffect(() => {
     const nv = engines.current?.render;
@@ -492,20 +475,6 @@ export default function Viewer({
               step={5}
               disabled={loading}
             />
-          </section>
-          <section className="control-section planes-section">
-            <div className="switch-row">
-              <label htmlFor="planes-switch">
-                <Layers3 size={16} /> Slice planes in 3D
-              </label>
-              <Switch
-                id="planes-switch"
-                aria-label="Slice planes in 3D"
-                checked={planes}
-                onCheckedChange={setPlanes}
-                disabled={loading}
-              />
-            </div>
           </section>
           <section
             className={`control-section cut-section ${cut ? 'enabled' : ''}`}

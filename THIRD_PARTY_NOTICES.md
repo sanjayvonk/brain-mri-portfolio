@@ -1,6 +1,6 @@
 # Third-party notices
 
-The viewer layout, styles (`src/globals.css`, `src/workspace.css`), UI components (`src/components/ui`), `src/focus-controller.ts`, `src/slice-planes-controller.ts` and parts of `src/Viewer.tsx` are adapted from [OpenMRI](https://github.com/lev1nson/OpenMRI), used under the MIT License:
+The viewer layout, styles (`src/globals.css`, `src/workspace.css`), UI components (`src/components/ui`), `src/focus-controller.ts` and parts of `src/Viewer.tsx` are adapted from [OpenMRI](https://github.com/lev1nson/OpenMRI), used under the MIT License:
 
 ```
 MIT License
