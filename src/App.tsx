@@ -135,7 +135,7 @@ export default function App() {
               <p>
                 At test time every voxel keeps the classes whose sorted softmax
                 mass stays under λ̂. A set of one is a confident call; sets of
-                two to four classes form the violet shell in the viewer.
+                two to four classes form the red shell in the viewer.
               </p>
             </li>
           </ol>

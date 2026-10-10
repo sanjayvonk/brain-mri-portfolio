@@ -132,7 +132,7 @@ body {
   font-variant-numeric: tabular-nums;
 }
 .stat-grid > div:nth-child(2) dd {
-  color: #c9b8ff;
+  color: #ff7a5c;
 }
 .stat-grid small {
   color: #666;
@@ -256,7 +256,7 @@ body {
   color: #eee;
 }
 .probe b {
-  color: #c9b8ff;
+  color: #ff7a5c;
   font-weight: 600;
 }
 
@@ -376,7 +376,7 @@ body {
   margin-top: 18px;
 }
 .result-notes strong {
-  color: #c9b8ff;
+  color: #ff7a5c;
   font-weight: 600;
 }
 .caveat {

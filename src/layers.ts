@@ -8,9 +8,9 @@ const TRUTH: [number, number, number][] = [
   [226, 250, 236],
 ];
 const SET: [number, number, number][] = [
-  [128, 82, 255],
-  [176, 140, 255],
-  [236, 226, 255],
+  [150, 18, 24],
+  [228, 38, 32],
+  [255, 122, 92],
 ];
 
 const rgb = (c: number[]) => `rgb(${c.join(' ')})`;
