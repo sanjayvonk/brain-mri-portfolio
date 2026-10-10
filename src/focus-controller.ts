@@ -175,14 +175,21 @@ export class FocusController {
     this.dragging = false;
   };
 
-  /** Moves without the glide, for continuous input such as a drag. */
+  /**
+   * Moves without the glide, for continuous input such as a drag or the
+   * wheel. Input can arrive several times per frame, and each redraw includes
+   * the 3D volume, so the redraw waits for the next frame and runs once.
+   */
   private jumpTo(frac: Vec3) {
     cancelAnimationFrame(this.frame);
     this.target = frac.map((v) => Math.max(0, Math.min(1, v))) as Vec3;
     this.current = [...this.target];
     this.visible = true;
-    this.apply();
-    this.notify();
+    this.frame = requestAnimationFrame(() => {
+      if (!this.enabled) return;
+      this.apply();
+      this.notify();
+    });
   }
 
   private wheelFrom(nv: Niivue, event: WheelEvent) {
@@ -227,7 +234,7 @@ export class FocusController {
       0.5 / dim,
       Math.min(1 - 0.5 / dim, next[axis] + (direction * voxels) / dim),
     );
-    this.moveTo(next);
+    this.jumpTo(next);
   }
 
   private syncPeer() {
