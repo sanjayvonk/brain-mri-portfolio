@@ -169,7 +169,7 @@ stats["missed_slice"] = best
 
 # Slice images for that figure, from the native display volumes, cropped to
 # the brain and stored as rows top to bottom, anterior first, patient right on
-# the left (radiological, like the viewer).
+# the right.
 z = best["z"]
 flair = np.asarray(nib.load(case_dir / f"BraTS20_Training_{case}_flair.nii").dataobj)[:, :, z]
 t1ce = np.asarray(nib.load(case_dir / f"BraTS20_Training_{case}_t1ce.nii").dataobj)[:, :, z]
@@ -183,9 +183,10 @@ def plane(volume, window=None):
     data = volume[x0:x1, y0:y1].astype(np.float32)
     if window:
         data = np.clip(data / window * 255, 0, 255)
-    # Voxel x grows toward the patient's left and y toward posterior, which
-    # matches the radiological screen layout once transposed.
-    return base64.b64encode(np.ascontiguousarray(data.T).astype(np.uint8).tobytes()).decode()
+    # Voxel x grows toward the patient's left and y toward posterior. After the
+    # transpose rows run anterior to posterior; mirroring the columns puts the
+    # patient's right on the right of the image.
+    return base64.b64encode(np.ascontiguousarray(data.T[:, ::-1]).astype(np.uint8).tobytes()).decode()
 
 
 slice_data = {

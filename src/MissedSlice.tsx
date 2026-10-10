@@ -108,8 +108,8 @@ export default function MissedSlice({
 
   const pct = Math.round((counts.found / counts.tumour) * 100);
   const notes: Record<Panel['key'], string> = {
-    scan: `Axial slice ${counts.z}, base of the right hemisphere`,
-    prediction: `Labels ${counts.found} of ${counts.tumour} tumour voxels (${pct}%)`,
+    scan: `Axial slice ${counts.z}. A glioma sits low in the right hemisphere: the bright region on the right of the brain.`,
+    prediction: `The model labels only ${counts.found} of the ${counts.tumour} tumour voxels (${pct}%). The other ${counts.missed}, nearly the whole lesion, go undetected.`,
     uncertainty: `Flags ${counts.caught} of the ${counts.missed} voxels the model missed`,
     truth: `${counts.tumour} voxels of tumour`,
   };
@@ -160,7 +160,7 @@ export default function MissedSlice({
         </button>
         <p>
           Counts on the model&apos;s 128 × 128 grid; images at 1 mm with the
-          overlays smoothed for display. Patient right is on the left.
+          overlays smoothed for display. Patient right is on the right.
         </p>
       </div>
     </section>
