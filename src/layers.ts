@@ -1,6 +1,6 @@
-// The BraTS convention (challenge papers, ITK-SNAP's default labels):
-// necrotic core red, edema green, enhancing tumour yellow.
-export const NECROTIC: [number, number, number] = [235, 40, 40];
+// Edema green and enhancing tumour yellow as in the BraTS convention; the
+// necrotic core is blue rather than red, because red marks the uncertainty.
+export const NECROTIC: [number, number, number] = [45, 125, 255];
 export const EDEMA: [number, number, number] = [40, 205, 70];
 export const ENHANCING: [number, number, number] = [255, 225, 40];
 export const TRUTH: [number, number, number][] = [
