@@ -47,14 +47,21 @@ export class FocusController {
     };
     slices.onLocationChange = (value: unknown) => {
       const location = value as { frac?: number[] };
-      if (this.enabled && location.frac)
-        this.moveTo(Array.from(location.frac) as Vec3);
+      if (!this.enabled || !location.frac) return;
+      const frac = Array.from(location.frac) as Vec3;
+      // A drag follows the pointer directly; only a single click glides.
+      if (this.dragging) this.jumpTo(frac);
+      else this.moveTo(frac);
     };
     this.wheelCanvas = slices.canvas!;
     this.wheelCanvas.addEventListener('wheel', this.onWheel, {
       capture: true,
       passive: false,
     });
+    this.wheelCanvas.addEventListener('pointerdown', this.onPointerDown);
+    this.wheelCanvas.addEventListener('pointermove', this.onPointerMove);
+    window.addEventListener('pointerup', this.onPointerUp);
+    window.addEventListener('pointercancel', this.onPointerUp);
   }
 
   pause() {
@@ -153,6 +160,30 @@ export class FocusController {
   }
 
   private onWheel = (event: WheelEvent) => this.wheelFrom(this.slices, event);
+
+  private pressed = false;
+  private dragging = false;
+  private onPointerDown = (event: PointerEvent) => {
+    this.pressed = event.button === 0;
+    this.dragging = false;
+  };
+  private onPointerMove = (event: PointerEvent) => {
+    if (this.pressed && event.buttons & 1) this.dragging = true;
+  };
+  private onPointerUp = () => {
+    this.pressed = false;
+    this.dragging = false;
+  };
+
+  /** Moves without the glide, for continuous input such as a drag. */
+  private jumpTo(frac: Vec3) {
+    cancelAnimationFrame(this.frame);
+    this.target = frac.map((v) => Math.max(0, Math.min(1, v))) as Vec3;
+    this.current = [...this.target];
+    this.visible = true;
+    this.apply();
+    this.notify();
+  }
 
   private wheelFrom(nv: Niivue, event: WheelEvent) {
     if (
@@ -307,6 +338,10 @@ export class FocusController {
     this.pause();
     this.setPeer(null);
     this.wheelCanvas.removeEventListener('wheel', this.onWheel, true);
+    this.wheelCanvas.removeEventListener('pointerdown', this.onPointerDown);
+    this.wheelCanvas.removeEventListener('pointermove', this.onPointerMove);
+    window.removeEventListener('pointerup', this.onPointerUp);
+    window.removeEventListener('pointercancel', this.onPointerUp);
     this.render.drawSceneCore = this.originalDraw;
     this.render.drawImage3D = this.originalImageDraw;
     this.slices.onLocationChange = () => {};
