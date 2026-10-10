@@ -1,7 +1,8 @@
-// Colours follow the napari viewer of the research project.
-export const NECROTIC: [number, number, number] = [38, 191, 242];
-export const EDEMA: [number, number, number] = [250, 191, 38];
-export const ENHANCING: [number, number, number] = [242, 64, 115];
+// The BraTS convention (challenge papers, ITK-SNAP's default labels):
+// necrotic core red, edema green, enhancing tumour yellow.
+export const NECROTIC: [number, number, number] = [235, 40, 40];
+export const EDEMA: [number, number, number] = [40, 205, 70];
+export const ENHANCING: [number, number, number] = [255, 225, 40];
 export const TRUTH: [number, number, number][] = [
   [178, 237, 202],
   [140, 220, 180],

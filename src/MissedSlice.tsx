@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Crosshair } from 'lucide-react';
-import { EDEMA, ENHANCING, NECROTIC, SET, TRUTH } from './layers';
+import { EDEMA, ENHANCING, NECROTIC, SET } from './layers';
 
 type SliceData = {
   z: number;
@@ -36,7 +36,7 @@ const panels: Panel[] = [
   {
     key: 'truth',
     title: 'Expert annotation',
-    colors: { 1: TRUTH[0], 2: TRUTH[1], 3: TRUTH[2] },
+    colors: { 1: NECROTIC, 2: EDEMA, 3: ENHANCING },
   },
 ];
 
