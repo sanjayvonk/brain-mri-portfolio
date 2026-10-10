@@ -129,12 +129,14 @@ export default function MissedSlice({
         <h2>A tumour the model missed, and the uncertainty caught</h2>
       </header>
       <p className="missed-lead">
-        Low in the right hemisphere the U-Net labels this slice almost entirely
-        as healthy tissue, although the expert marks tumour there. The
-        segmentation alone would hide it. The conformal prediction sets do not:
-        every voxel the model missed on this slice keeps more than one class in
-        its set, so the region lights up as uncertain. The same happens at the
-        bright spot in the middle, which the model wrongly calls tumour.
+        On this slice, low in the right hemisphere, the expert marks a tumour
+        that the U-Net almost completely misses: it labels nearly the whole
+        lesion as healthy tissue. From the segmentation alone, you would never
+        know it was there. The uncertainty layer tells a different story. For
+        every voxel the model missed, the prediction set still holds more than
+        one class, so the entire lesion is flagged as uncertain. It works the
+        other way round too: the bright spot in the middle, which the model
+        wrongly labels as tumour, is flagged as well.
       </p>
       <div className="missed-grid">
         {panels.map((panel, i) => (
