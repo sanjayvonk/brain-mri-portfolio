@@ -31,20 +31,37 @@ labels = nib.load(src / "tumor_labels.nii.gz").get_fdata().round().astype(np.uin
 sets = nib.load(src / "uncertainty.nii.gz").get_fdata().round().astype(np.uint8)
 
 source = nib.load(case_dir / f"BraTS20_Training_{case}_flair.nii")
-affine = source.affine
+
+# The site's files are kept small: everything is cropped to the brain's
+# bounding box (the brain fills about 40% of the 240 x 240 x 155 grid), the
+# scans are stored as 8-bit and gzip runs at its strongest level.
+nib.openers.Opener.default_compresslevel = 9
+xs, ys, zs = np.nonzero(np.asarray(source.dataobj) > 0)
+box = tuple(
+    slice(max(int(a.min()) - 2, 0), min(int(a.max()) + 3, n))
+    for a, n in zip((xs, ys, zs), source.shape)
+)
+crop_shape = [b.stop - b.start for b in box]
+affine = source.affine.copy()
+affine[:3, 3] += source.affine[:3, :3] @ [b.start for b in box]
 
 
 def save(data, name):
-    img = nib.Nifti1Image(data, affine)
+    img = nib.Nifti1Image(data[box], affine)
     img.header.set_xyzt_units("mm")
     nib.save(img, out / f"{name}.nii.gz")
 
 
-# Native scans. Each gets its own display window from the brain voxels.
+# Native scans, scaled to 8 bits from the brain's intensities. Each also gets
+# a display window.
 display_max = {}
+scaled = {}
 for scan in ["flair", "t1ce", "t1", "t2"]:
     data = np.asarray(nib.load(case_dir / f"BraTS20_Training_{case}_{scan}.nii").dataobj)
-    data = np.clip(data, 0, None).astype(np.int16)
+    data = np.clip(data, 0, None).astype(np.float32)
+    data = np.clip(np.rint(data / np.percentile(data[data > 0], 99.9) * 255), 0, 255)
+    data = data.astype(np.uint8)
+    scaled[scan] = data
     save(data, scan)
     display_max[scan] = float(np.percentile(data[data > 0], 99.5))
 
@@ -171,8 +188,8 @@ stats["missed_slice"] = best
 # the brain and stored as rows top to bottom, anterior first, patient right on
 # the right.
 z = best["z"]
-flair = np.asarray(nib.load(case_dir / f"BraTS20_Training_{case}_flair.nii").dataobj)[:, :, z]
-t1ce = np.asarray(nib.load(case_dir / f"BraTS20_Training_{case}_t1ce.nii").dataobj)[:, :, z]
+flair = scaled["flair"][:, :, z]
+t1ce = scaled["t1ce"][:, :, z]
 xs, ys = np.nonzero(flair > 0)
 pad = 6
 x0, x1 = max(xs.min() - pad, 0), min(xs.max() + pad + 1, NATIVE)
@@ -199,10 +216,11 @@ slice_data = {
     "uncertainty": plane(np.where(set_size > 1, set_size, 0)[:, :, z]),
     "truth": plane(gt_native[:, :, z]),
     # Centre of the missed tumour as a RAS volume fraction, for the viewer.
+    # NiiVue flips x and y into RAS order; the fraction is of the cropped grid.
     "focus": [
-        float((NATIVE - 1 - np.argwhere(gt_native[:, :, z] > 0)[:, 0].mean() + 0.5) / NATIVE),
-        float((NATIVE - 1 - np.argwhere(gt_native[:, :, z] > 0)[:, 1].mean() + 0.5) / NATIVE),
-        float((z + 0.5) / gt_native.shape[2]),
+        float((box[0].stop - 1 - np.argwhere(gt_native[:, :, z] > 0)[:, 0].mean() + 0.5) / crop_shape[0]),
+        float((box[1].stop - 1 - np.argwhere(gt_native[:, :, z] > 0)[:, 1].mean() + 0.5) / crop_shape[1]),
+        float((z - box[2].start + 0.5) / crop_shape[2]),
     ],
 }
 (out / "missed_slice.json").write_text(json.dumps(slice_data))
