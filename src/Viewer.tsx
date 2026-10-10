@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Niivue } from '@niivue/niivue';
 import type { FocusController } from './focus-controller';
+import { patchOverlayBlending } from './niivue-patch';
 import {
   Box,
   Check,
@@ -113,6 +114,7 @@ export default function Viewer({
         import('./focus-controller'),
       ]);
       if (!active || !renderCanvas.current || !sliceCanvas.current) return;
+      patchOverlayBlending();
       const common = {
         backColor: [0, 0, 0, 1] as [number, number, number, number],
         crosshairColor: [1, 0.72, 0.16, 1] as [number, number, number, number],
@@ -164,6 +166,15 @@ export default function Viewer({
         B: [0, 19, 51, 111, 186, 243],
         A: [0, 0, 45, 125, 210, 255],
       });
+      // Red through orange to a hot, near-white core. The fade comes from the
+      // volume's alphaThreshold, so the colours stay bright at the edge.
+      render.addColormap('uncertaintyGlow', {
+        I: [0, 20, 70, 140, 210, 255],
+        R: [0, 220, 245, 255, 255, 255],
+        G: [0, 45, 65, 115, 185, 240],
+        B: [0, 35, 45, 60, 120, 205],
+        A: [0, 3, 28, 90, 165, 225],
+      });
       render.setClipPlaneColor([0.7, 0.95, 0.82, -0.05]);
       slices.setCustomLayout(
         [0, 1, 2].map((sliceType, i) => ({
@@ -173,7 +184,7 @@ export default function Viewer({
       );
 
       const base = import.meta.env.BASE_URL;
-      const volumes = [
+      const scanVolume = [
         {
           // Contrast T1 shows the sharpest anatomy, so the page opens on it.
           url: `${base}data/t1ce.nii.gz`,
@@ -181,15 +192,30 @@ export default function Viewer({
           cal_min: 0,
           cal_max: displayMax.t1ce,
         },
-        ...layerOrder.map((id) => ({
-          url: `${base}data/${LAYERS[id].file}`,
-          colormap: 'gray',
-          opacity: 0,
-        })),
       ];
+      const overlays = (in3d: boolean) =>
+        layerOrder.map((id) => {
+          const glow = in3d ? LAYERS[id].glow3d : undefined;
+          return glow
+            ? {
+                url: `${base}data/${glow.file}`,
+                colormap: glow.colormap,
+                // NiiVue draws overlay voxels opaque; alphaThreshold instead
+                // fades them in as (value / cal_min)^2, which makes the glow.
+                alphaThreshold: true,
+                cal_min: 90,
+                cal_max: 255,
+                opacity: 0,
+              }
+            : {
+                url: `${base}data/${LAYERS[id].file}`,
+                colormap: 'gray',
+                opacity: 0,
+              };
+        });
       const loads = await Promise.allSettled([
-        render.loadVolumes(volumes),
-        slices.loadVolumes(volumes),
+        render.loadVolumes([...scanVolume, ...overlays(true)]),
+        slices.loadVolumes([...scanVolume, ...overlays(false)]),
       ]);
       const failed = loads.find((result) => result.status === 'rejected');
       if (failed?.status === 'rejected') throw failed.reason;
@@ -197,9 +223,8 @@ export default function Viewer({
       for (const nv of [render, slices]) {
         layerOrder.forEach((id, i) => {
           const layer = LAYERS[id];
-          nv.volumes[i + 1].setColormapLabel(
-            nv === render ? (layer.lut3d ?? layer.lut) : layer.lut,
-          );
+          if (nv !== render || !layer.glow3d)
+            nv.volumes[i + 1].setColormapLabel(layer.lut);
         });
         nv.updateGLVolume();
       }

@@ -42,8 +42,11 @@ type Layer = {
   /** Scales the shared opacity slider; the uncertainty shell needs less. */
   weight: number;
   lut: ReturnType<typeof lut>;
-  /** Volume rendering accumulates alpha along each ray, so it may need a sparser table. */
-  lut3d?: ReturnType<typeof lut>;
+  /**
+   * The 3D view can draw a continuous volume instead, with its own colour
+   * map, for a soft glow rather than solid label surfaces.
+   */
+  glow3d?: { file: string; colormap: string };
   legend: { label: string; color: string }[];
 };
 
@@ -72,7 +75,7 @@ export const LAYERS: Record<LayerId, Layer> = {
     name: 'Conformal uncertainty',
     caption: 'Prediction-set size 2–4',
     file: 'uncertainty.nii.gz',
-    weight: 0.5,
+    weight: 0.7,
     // Values 2, 3 and 4 hold the set size; 0 and 1 stay transparent.
     lut: {
       R: [0, 0, ...SET.map((c) => c[0])],
@@ -82,15 +85,7 @@ export const LAYERS: Record<LayerId, Layer> = {
       I: [0, 1, 2, 3, 4],
       labels: ['', '', '2 classes', '3 classes', '4 classes'],
     },
-    // Sets of two are spread along tissue borders and fog the 3D view.
-    lut3d: {
-      R: [0, 0, ...SET.map((c) => c[0])],
-      G: [0, 0, ...SET.map((c) => c[1])],
-      B: [0, 0, ...SET.map((c) => c[2])],
-      A: [0, 0, 0, 200, 255],
-      I: [0, 1, 2, 3, 4],
-      labels: ['', '', '2 classes', '3 classes', '4 classes'],
-    },
+    glow3d: { file: 'uncertainty_glow.nii.gz', colormap: 'uncertaintyGlow' },
     legend: [
       { label: 'Set of 2', color: rgb(SET[0]) },
       { label: '3', color: rgb(SET[1]) },
@@ -114,7 +109,7 @@ export const PRESETS: Record<
   uncertainty: {
     label: 'Uncertainty',
     title: 'Where the model is unsure',
-    note: 'Voxels whose conformal prediction set holds more than one class. The slices show every uncertain voxel; the 3D view keeps sets of three or four, the shell around the tumour.',
+    note: 'Voxels whose conformal prediction set holds more than one class. The slices show every uncertain voxel; in 3D the uncertainty glows, brightest where three or four classes remain.',
     layers: { prediction: true, truth: false, uncertainty: true },
   },
   compare: {

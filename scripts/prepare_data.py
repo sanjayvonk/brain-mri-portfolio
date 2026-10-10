@@ -99,6 +99,13 @@ set_size = np.clip(np.rint(resample(np.maximum(sets, 1).astype(np.float32))), 1,
 # Prediction-set size 1 means the set holds one class. Keep only uncertain voxels.
 save(np.where(set_size > 1, set_size, 0).astype(np.uint8), "uncertainty")
 
+# A soft glow of the same uncertainty for the 3D view: sets of three or four
+# shine, sets of two only faintly, blurred into a halo and scaled to 0-255.
+weight = np.array([0, 0, 0.15, 0.6, 1.0], np.float32)  # by set size 0-4
+glow = ndimage.gaussian_filter(resample(weight[sets]), (2.5, 2.5, 2.0))
+glow = np.clip(glow / np.percentile(glow[glow > 0.01], 99.5), 0, 1)
+save(np.rint(glow * 255).astype(np.uint8), "uncertainty_glow")
+
 seg = np.asarray(nib.load(case_dir / f"BraTS20_Training_{case}_seg.nii").dataobj)
 gt_native = np.where(seg == 4, 3, seg).astype(np.uint8)
 save(gt_native, "ground_truth")
