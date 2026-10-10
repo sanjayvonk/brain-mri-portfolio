@@ -39,5 +39,5 @@
     "4": 15133
   },
   "missed_tumour_in_uncertain_region": 0.964964591874767,
-  "native_whole_tumour_dice": 0.8533390137394824
+  "native_whole_tumour_dice": 0.8513996063335018
 }

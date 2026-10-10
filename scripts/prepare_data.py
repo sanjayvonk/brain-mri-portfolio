@@ -62,12 +62,37 @@ def resample(volume):
     return ndimage.gaussian_filter(fine, SIGMA)
 
 
-def smooth_labels(volume, values):
-    scores = np.stack([resample((volume == v).astype(np.float32)) for v in values])
-    return np.asarray(values, dtype=np.uint8)[scores.argmax(0)]
+VOXEL_SCALE = (NATIVE / MODEL) ** 2  # native voxels per model voxel
 
 
-prediction = smooth_labels(labels, [0, 1, 2, 3])
+def smooth_region(mask, sigma=SIGMA):
+    """Smooth a model-grid mask onto the native grid, keeping its volume."""
+    fine = ndimage.map_coordinates(mask.astype(np.float32), [cx, cy, cz], order=1, mode="nearest")
+    fine = ndimage.gaussian_filter(fine, sigma)
+    target = int(round(mask.sum() * VOXEL_SCALE))
+    if target == 0:
+        return np.zeros(fine.shape, bool)
+    # Blurring shrinks small regions at a 0.5 cut, so threshold at the level
+    # that keeps the region as large as it was on the model grid.
+    threshold = np.partition(fine.ravel(), -target)[-target]
+    return fine >= max(threshold, 1e-3)
+
+
+# Smooth the nested BraTS regions rather than each class: whole tumour
+# {1,2,3}, tumour core {1,3} and enhancing tumour {3}. The inner borders then
+# come out as smooth surfaces too, instead of speckled islands.
+whole = smooth_region(labels > 0)
+core = smooth_region(np.isin(labels, [1, 3])) & whole
+enhancing = smooth_region(labels == 3) & core
+# Where the core and enhancing borders nearly coincide, core minus enhancing
+# leaves thin slivers; fold the small ones into the enhancing tumour.
+slivers, count = ndimage.label(core & ~enhancing)
+sizes = ndimage.sum(np.ones_like(slivers), slivers, range(1, count + 1))
+enhancing |= np.isin(slivers, np.flatnonzero(sizes < 30) + 1)
+prediction = np.zeros(whole.shape, np.uint8)
+prediction[whole] = 2
+prediction[core] = 1
+prediction[enhancing] = 3
 save(prediction, "prediction")
 # Set sizes are nested shells (1 = confident); interpolate them as a number.
 set_size = np.clip(np.rint(resample(np.maximum(sets, 1).astype(np.float32))), 1, 4)
