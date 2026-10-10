@@ -6,7 +6,6 @@ import type { FocusController } from './focus-controller';
 import { patchOverlayBlending } from './niivue-patch';
 import {
   Box,
-  Check,
   Crosshair,
   Layers3,
   LoaderCircle,
@@ -34,16 +33,6 @@ type Mode = 'both' | 'volume' | 'slices';
 type Point = { mm: number[]; frac: number[] };
 type Probe = { flair: number; prediction: number; truth: number; set: number };
 
-const paletteNames: Record<string, string> = {
-  silver: 'Silver',
-  jade: 'Jade',
-  amber: 'Amber',
-};
-const paletteMaps: Record<string, string> = {
-  silver: 'gray',
-  jade: 'neuroJade',
-  amber: 'neuroAmber',
-};
 const axes: Record<string, number[]> = {
   sagittal: [270, 0],
   coronal: [0, 0],
@@ -78,7 +67,6 @@ export default function Viewer({
   const [mode, setMode] = useState<Mode>('both');
   const [compact, setCompact] = useState(false);
   const [scan, setScan] = useState<ScanId>('t1ce');
-  const [palette, setPalette] = useState('silver');
   const [brightness, setBrightness] = useState(100);
   const [preset, setPreset] = useState<PresetId>('uncertainty');
   const [visible, setVisible] = useState<Record<LayerId, boolean>>(
@@ -100,10 +88,6 @@ export default function Viewer({
   const engines = useRef<{ render: Niivue; slices: Niivue } | null>(null);
   const focusRef = useRef<FocusController | null>(null);
   const loadedScan = useRef<ScanId>('t1ce');
-  const paletteRef = useRef('silver');
-  useEffect(() => {
-    paletteRef.current = palette;
-  }, [palette]);
 
   useEffect(() => {
     let active = true;
@@ -160,20 +144,6 @@ export default function Viewer({
       render.setSliceType(4);
       render.setRenderAzimuthElevation(120, 14);
       render.setScale(1.05);
-      render.addColormap('neuroJade', {
-        I: [0, 45, 100, 170, 225, 255],
-        R: [0, 12, 52, 135, 208, 248],
-        G: [0, 39, 116, 188, 233, 255],
-        B: [0, 37, 111, 174, 216, 253],
-        A: [0, 0, 45, 125, 210, 255],
-      });
-      render.addColormap('neuroAmber', {
-        I: [0, 40, 100, 165, 225, 255],
-        R: [0, 63, 169, 233, 255, 255],
-        G: [0, 28, 88, 167, 224, 253],
-        B: [0, 19, 51, 111, 186, 243],
-        A: [0, 0, 45, 125, 210, 255],
-      });
       // The uncertainty is drawn by its own engine on a transparent canvas
       // over the 3D view. CSS adds it to the image (screen blend) and blurs it
       // into a bloom, so uncertain regions light up the brain like a light
@@ -315,10 +285,6 @@ export default function Viewer({
         nv.setVolume(images[i], 0);
         nv.removeVolume(previous);
       });
-      pair.render.setColormap(
-        pair.render.volumes[0].id,
-        paletteMaps[paletteRef.current],
-      );
       loadedScan.current = scan;
       setBrightness(100);
       setLoading(false);
@@ -375,12 +341,6 @@ export default function Viewer({
       nv.updateGLVolume();
     }
   }, [visible, overlayOpacity, ready]);
-
-  useEffect(() => {
-    const nv = engines.current?.render;
-    if (nv?.volumes[0] && ready)
-      nv.setColormap(nv.volumes[0].id, paletteMaps[palette]);
-  }, [palette, ready]);
 
   useEffect(() => {
     const nv = engines.current?.render;
@@ -466,7 +426,6 @@ export default function Viewer({
     setAxis('sagittal');
     setRotate(false);
     setBrightness(100);
-    setPalette('silver');
     engines.current?.render.setRenderAzimuthElevation(120, 14);
     engines.current?.render.setScale(1.05);
   }, []);
@@ -572,32 +531,9 @@ export default function Viewer({
 
           <section className="control-section">
             <div className="control-heading">
-              <span className="eyebrow">LIGHT AND MATERIAL</span>
+              <span className="eyebrow">LIGHT</span>
               <span className="tiny-badge">3D</span>
             </div>
-            <ToggleGroup
-              value={[palette]}
-              onValueChange={(v) => {
-                if (v[0]) setPalette(String(v[0]));
-              }}
-              className="palettes"
-              aria-label="Volume palette"
-              disabled={loading}
-            >
-              {Object.entries(paletteNames).map(([id, name]) => (
-                <ToggleGroupItem
-                  value={id}
-                  className={`palette ${id} ${palette === id ? 'chosen' : ''}`}
-                  key={id}
-                  aria-label={name}
-                >
-                  <span className="palette-swatch">
-                    {palette === id && <Check size={15} />}
-                  </span>
-                  <span>{name}</span>
-                </ToggleGroupItem>
-              ))}
-            </ToggleGroup>
             <div className="slider-label">
               <span id="brightness-label">Volume brightness</span>
               <output>{brightness}%</output>
@@ -753,8 +689,7 @@ export default function Viewer({
                 <span>VOLUME RENDERING</span>
               </div>
               <div className="render-subtitle">
-                {paletteNames[palette]}
-                {cut ? ' / cut' : ' / full volume'}
+                {cut ? 'Cut' : 'Full volume'}
               </div>
               <div className="legend" aria-label="Legend">
                 {activeLayers.flatMap((id) =>
