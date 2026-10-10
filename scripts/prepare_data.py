@@ -173,10 +173,14 @@ stats["missed_slice"] = best
 z = best["z"]
 flair = np.asarray(nib.load(case_dir / f"BraTS20_Training_{case}_flair.nii").dataobj)[:, :, z]
 t1ce = np.asarray(nib.load(case_dir / f"BraTS20_Training_{case}_t1ce.nii").dataobj)[:, :, z]
-xs, ys = np.nonzero(flair > 0)
-pad = 6
-x0, x1 = max(xs.min() - pad, 0), min(xs.max() + pad + 1, NATIVE)
-y0, y1 = max(ys.min() - pad, 0), min(ys.max() + pad + 1, NATIVE)
+# Zoom on everything drawn on this slice (tumour, prediction, uncertainty),
+# with a margin of anatomy around it, kept inside the brain.
+shown = (gt_native[:, :, z] > 0) | (prediction[:, :, z] > 0) | (set_size[:, :, z] > 1)
+xs, ys = np.nonzero(shown)
+bx, by = np.nonzero(flair > 0)
+pad = 16
+x0, x1 = max(xs.min() - pad, bx.min() - 2), min(xs.max() + pad + 1, bx.max() + 3)
+y0, y1 = max(ys.min() - pad, by.min() - 2), min(ys.max() + pad + 1, by.max() + 3)
 
 
 def plane(volume, window=None):
