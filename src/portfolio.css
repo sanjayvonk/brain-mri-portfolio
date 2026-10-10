@@ -271,6 +271,41 @@ body {
   transition: opacity 0.2s;
 }
 
+/* Draggable divider between the 3D view and the slices. */
+.viewer-shell .scan-stage.mode-both {
+  grid-template-columns: minmax(0, 1fr) var(--slices-width, 28%) !important;
+}
+.stage-divider {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: var(--slices-width, 28%);
+  width: 14px;
+  transform: translateX(50%);
+  z-index: 5;
+  cursor: col-resize;
+  touch-action: none;
+}
+.stage-divider::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 2px;
+  transform: translateX(-50%);
+  background: transparent;
+  transition: background 0.15s;
+}
+.stage-divider:hover::after,
+.stage-divider:active::after,
+.stage-divider:focus-visible::after {
+  background: var(--iris);
+}
+.stage-divider:focus-visible {
+  outline: none;
+}
+
 /* Content sections */
 .content-section {
   padding: clamp(56px, 10vh, 112px) clamp(16px, 6vw, 88px);

@@ -79,6 +79,9 @@ export default function Viewer({
   const [axis, setAxis] = useState('sagittal');
   const [rotate, setRotate] = useState(false);
   const [immersive, setImmersive] = useState(false);
+  // Width of the slices column as a share of the stage, set by the divider.
+  const [slicesShare, setSlicesShare] = useState(0.28);
+  const stageRef = useRef<HTMLDivElement>(null);
   const [point, setPoint] = useState<Point | null>(null);
   const [hasFocus, setHasFocus] = useState(false);
   const [probe, setProbe] = useState<Probe | null>(null);
@@ -681,7 +684,54 @@ export default function Viewer({
               <span>· voxel</span>
             </span>
           </div>
-          <div className={`scan-stage mode-${mode}`}>
+          <div
+            ref={stageRef}
+            className={`scan-stage mode-${mode}`}
+            style={
+              { '--slices-width': `${slicesShare * 100}%` } as React.CSSProperties
+            }
+          >
+            {mode === 'both' && !compact && (
+              <div
+                className="stage-divider"
+                role="separator"
+                aria-orientation="vertical"
+                aria-label="Resize the slices panel"
+                aria-valuemin={15}
+                aria-valuemax={70}
+                aria-valuenow={Math.round(slicesShare * 100)}
+                tabIndex={0}
+                title="Drag to resize · double-click to reset"
+                onPointerDown={(e) => {
+                  const stage = stageRef.current;
+                  if (!stage) return;
+                  e.preventDefault();
+                  const divider = e.currentTarget;
+                  divider.setPointerCapture(e.pointerId);
+                  const move = (ev: PointerEvent) => {
+                    const box = stage.getBoundingClientRect();
+                    setSlicesShare(
+                      Math.min(0.7, Math.max(0.15, (box.right - ev.clientX) / box.width)),
+                    );
+                  };
+                  const up = () => {
+                    divider.removeEventListener('pointermove', move);
+                    divider.removeEventListener('pointerup', up);
+                    divider.removeEventListener('pointercancel', up);
+                  };
+                  divider.addEventListener('pointermove', move);
+                  divider.addEventListener('pointerup', up);
+                  divider.addEventListener('pointercancel', up);
+                }}
+                onDoubleClick={() => setSlicesShare(0.28)}
+                onKeyDown={(e) => {
+                  const step = e.key === 'ArrowLeft' ? 0.03 : e.key === 'ArrowRight' ? -0.03 : 0;
+                  if (!step) return;
+                  e.preventDefault();
+                  setSlicesShare((v) => Math.min(0.7, Math.max(0.15, v + step)));
+                }}
+              />
+            )}
             <div
               className="render-pane"
               style={{ display: mode === 'slices' ? 'none' : undefined }}
