@@ -71,7 +71,6 @@ tumour_pred, tumour_gt = labels > 0, gt > 0
 brain = flair_128 > 0
 missed = tumour_gt & ~tumour_pred
 stats = {
-    "case": case,
     "shape": list(source.shape),
     "voxel_mm": [float(v) for v in source.header.get_zooms()[:3]],
     "model_shape": list(labels.shape),

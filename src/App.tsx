@@ -87,8 +87,8 @@ export default function App() {
           />
           <div className="below-viewer">
             <span>
-              BraTS 2020 training case {stats.case} · scans at 1 mm; model
-              outputs mapped from its 128 × 128 grid
+              BraTS 2020 · scans at 1 mm; model outputs mapped from its
+              128 × 128 grid
             </span>
             <span>Research visualisation · not for diagnosis</span>
           </div>
@@ -154,7 +154,7 @@ export default function App() {
 
         <section id="results" className="content-section">
           <header>
-            <span className="eyebrow">RESULTS · CASE {stats.case}</span>
+            <span className="eyebrow">RESULTS</span>
             <h2>The shell catches what the outline misses</h2>
           </header>
           <div className="results-grid">
@@ -197,7 +197,7 @@ export default function App() {
               </p>
               <p className="caveat">
                 <ShieldCheck size={15} />
-                Case {stats.case} was one of the calibration scans, so these
+                This scan was one of the calibration scans, so these
                 figures are in-sample and describe a single patient. The
                 conformal guarantee holds on average over new scans, not for
                 any one voxel.

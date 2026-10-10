@@ -427,11 +427,10 @@ export default function Viewer({
             <span className="tiny-badge">BraTS 2020</span>
           </div>
           <h1 className="case-title">
-            Training <span>070</span>
+            Brain <span>glioma</span>
           </h1>
           <p className="study-meta">
-            {scans[scan].name} <span>·</span> glioma <span>·</span>{' '}
-            {shape.join(' × ')}
+            {scans[scan].name} <span>·</span> {shape.join(' × ')}
           </p>
 
           <div className="control-heading layer-heading">
@@ -752,7 +751,7 @@ export default function Viewer({
               <output className="scan-loading" aria-live="polite">
                 <LoaderCircle size={29} className="spin" />
                 <strong>Building the volume</strong>
-                <span>BraTS 2020 · case 070 · {scans[scan].name}</span>
+                <span>BraTS 2020 · {scans[scan].name}</span>
                 <small>Scan, prediction, expert labels and uncertainty</small>
               </output>
             )}

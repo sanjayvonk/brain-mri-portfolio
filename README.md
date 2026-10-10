@@ -20,7 +20,7 @@ npm run build      # static site in dist/
 
 ## Data
 
-`public/data/` holds BraTS 2020 training case 070 at its native 1 mm
+`public/data/` holds one BraTS 2020 training scan at its native 1 mm
 resolution (240 × 240 × 155): the FLAIR, T1, contrast T1 and T2 scans, the
 expert annotation, and the model's prediction and conformal prediction-set
 size. The model ran on 128 × 128 slices, so its outputs are mapped onto the
