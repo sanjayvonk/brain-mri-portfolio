@@ -463,32 +463,6 @@ body {
   font-size: 12px;
   line-height: 1.5;
 }
-.missed-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 12px;
-  margin: 6px 0 0;
-  padding: 0;
-  list-style: none;
-  font-size: 11px;
-  color: #bdbdbd;
-}
-.missed-legend li {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-.missed-legend i {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-}
-.missed-legend i.line {
-  width: 14px;
-  height: 2px;
-  border-radius: 1px;
-  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.6);
-}
 .missed-panel.panel-uncertainty {
   border-color: #5a1c14;
   box-shadow: 0 0 40px rgb(255 70 30 / 0.18);
