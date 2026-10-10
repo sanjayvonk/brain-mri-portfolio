@@ -1,4 +1,5 @@
 import { ArrowDown, ArrowUpRight, Orbit, ShieldCheck } from 'lucide-react';
+import MissedSlice from './MissedSlice';
 import Viewer from './Viewer';
 import stats from '../public/data/stats.json';
 
@@ -93,6 +94,8 @@ export default function App() {
             <span>Research visualisation · not for diagnosis</span>
           </div>
         </section>
+
+        <MissedSlice counts={stats.missed_slice} />
 
         <section id="method" className="content-section">
           <header>

@@ -415,6 +415,20 @@ export default function Viewer({
     setVisible(PRESETS[id].layers);
   }, []);
 
+  // Other parts of the page can point the viewer at a location.
+  useEffect(() => {
+    const go = (event: Event) => {
+      const frac = (event as CustomEvent<{ frac: [number, number, number] }>)
+        .detail?.frac;
+      if (!frac || !ready) return;
+      choosePreset('uncertainty');
+      setMode('both');
+      focusRef.current?.moveTo(frac);
+    };
+    window.addEventListener('viewer:focus', go);
+    return () => window.removeEventListener('viewer:focus', go);
+  }, [ready, choosePreset]);
+
   const toggleLayer = (id: LayerId) => {
     setPreset('custom');
     setVisible((v) => ({ ...v, [id]: !v[id] }));

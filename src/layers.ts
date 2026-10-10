@@ -1,13 +1,13 @@
 // Colours follow the napari viewer of the research project.
-const NECROTIC: [number, number, number] = [38, 191, 242];
-const EDEMA: [number, number, number] = [250, 191, 38];
-const ENHANCING: [number, number, number] = [242, 64, 115];
-const TRUTH: [number, number, number][] = [
+export const NECROTIC: [number, number, number] = [38, 191, 242];
+export const EDEMA: [number, number, number] = [250, 191, 38];
+export const ENHANCING: [number, number, number] = [242, 64, 115];
+export const TRUTH: [number, number, number][] = [
   [178, 237, 202],
   [140, 220, 180],
   [226, 250, 236],
 ];
-const SET: [number, number, number][] = [
+export const SET: [number, number, number][] = [
   [150, 18, 24],
   [228, 38, 32],
   [255, 122, 92],

@@ -9,6 +9,7 @@ Run with a Python that has nibabel, numpy and scipy:
     python scripts/prepare_data.py <research-project-dir> <out-dir>
 """
 
+import base64
 import json
 import sys
 from pathlib import Path
@@ -145,5 +146,63 @@ stats = {
     # Sanity check that the native grid lines up with the model's outputs.
     "native_whole_tumour_dice": dice(prediction > 0, gt_native > 0),
 }
+# The figure below the viewer: an axial slice where the model misses the
+# tumour but the uncertainty does not. Chosen on the model grid, among slices
+# where the model finds under 5% of the expert's tumour, as the one where the
+# most missed voxels fall inside the uncertainty region.
+best = None
+for z in range(labels.shape[2]):
+    truth, found, flagged = tumour_gt[:, :, z], tumour_pred[:, :, z], sets[:, :, z] > 1
+    if truth.sum() < 30 or (truth & found).sum() >= 0.05 * truth.sum():
+        continue
+    caught = int((truth & ~found & flagged).sum())
+    if best is None or caught > best["caught"]:
+        best = {
+            "z": z,
+            "tumour": int(truth.sum()),
+            "found": int((truth & found).sum()),
+            "missed": int((truth & ~found).sum()),
+            "caught": caught,
+        }
+stats["missed_slice"] = best
 (out / "stats.json").write_text(json.dumps(stats, indent=2))
+
+# Slice images for that figure, from the native display volumes, cropped to
+# the brain and stored as rows top to bottom, anterior first, patient right on
+# the left (radiological, like the viewer).
+z = best["z"]
+flair = np.asarray(nib.load(case_dir / f"BraTS20_Training_{case}_flair.nii").dataobj)[:, :, z]
+t1ce = np.asarray(nib.load(case_dir / f"BraTS20_Training_{case}_t1ce.nii").dataobj)[:, :, z]
+xs, ys = np.nonzero(flair > 0)
+pad = 6
+x0, x1 = max(xs.min() - pad, 0), min(xs.max() + pad + 1, NATIVE)
+y0, y1 = max(ys.min() - pad, 0), min(ys.max() + pad + 1, NATIVE)
+
+
+def plane(volume, window=None):
+    data = volume[x0:x1, y0:y1].astype(np.float32)
+    if window:
+        data = np.clip(data / window * 255, 0, 255)
+    # Voxel x grows toward the patient's left and y toward posterior, which
+    # matches the radiological screen layout once transposed.
+    return base64.b64encode(np.ascontiguousarray(data.T).astype(np.uint8).tobytes()).decode()
+
+
+slice_data = {
+    "z": z,
+    "width": int(x1 - x0),
+    "height": int(y1 - y0),
+    "flair": plane(flair, display_max["flair"]),
+    "t1ce": plane(t1ce, display_max["t1ce"]),
+    "prediction": plane(prediction[:, :, z]),
+    "uncertainty": plane(np.where(set_size > 1, set_size, 0)[:, :, z]),
+    "truth": plane(gt_native[:, :, z]),
+    # Centre of the missed tumour as a RAS volume fraction, for the viewer.
+    "focus": [
+        float((NATIVE - 1 - np.argwhere(gt_native[:, :, z] > 0)[:, 0].mean() + 0.5) / NATIVE),
+        float((NATIVE - 1 - np.argwhere(gt_native[:, :, z] > 0)[:, 1].mean() + 0.5) / NATIVE),
+        float((z + 0.5) / gt_native.shape[2]),
+    ],
+}
+(out / "missed_slice.json").write_text(json.dumps(slice_data))
 print(json.dumps(stats, indent=2))
