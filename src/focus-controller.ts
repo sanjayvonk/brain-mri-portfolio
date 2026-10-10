@@ -216,14 +216,15 @@ export class FocusController {
     const pixels =
       event.deltaY *
       (event.deltaMode === 1 ? 18 : event.deltaMode === 2 ? rect.height : 1);
-    const voxels = Math.max(-4, Math.min(4, pixels / 50));
+    // 1 voxel per 20 px of scroll, at most 8 per event.
+    const voxels = Math.max(-8, Math.min(8, pixels / 20));
     const direction = nv.opts.invertScrollDirection ? -1 : 1;
     if (nv.opts.isSliceMM) {
       const world = Array.from(this.slices.frac2mm(this.target, 0, true)).slice(
         0,
         3,
       );
-      world[axis] += direction * voxels; // 1 mm per 50px, without oblique-axis drift.
+      world[axis] += direction * voxels; // Without oblique-axis drift.
       const frac = nv.mm2frac(world, 0, true);
       if (Array.from(frac).some((v) => v < 0 || v > 1)) return;
       this.moveToWorld(world);
