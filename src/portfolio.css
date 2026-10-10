@@ -467,9 +467,6 @@ body {
   border-color: #5a1c14;
   box-shadow: 0 0 40px rgb(255 70 30 / 0.18);
 }
-.missed-panel.panel-uncertainty span {
-  color: #ff9a80;
-}
 .missed-footer {
   display: flex;
   align-items: center;
