@@ -1,16 +1,26 @@
 {
   "case": "070",
   "shape": [
+    240,
+    240,
+    155
+  ],
+  "voxel_mm": [
+    1.0,
+    1.0,
+    1.0
+  ],
+  "model_shape": [
     128,
     128,
     155
   ],
-  "voxel_mm": [
-    1.875,
-    1.875,
-    1.0
-  ],
-  "display_max": 1792.0,
+  "display_max": {
+    "flair": 448.0,
+    "t1ce": 921.1350000000093,
+    "t1": 477.0,
+    "t2": 399.0
+  },
   "dice": {
     "whole_tumour": 0.8449593446230972,
     "tumour_core": 0.587027969682742,
@@ -29,5 +39,6 @@
     "3": 19961,
     "4": 15133
   },
-  "missed_tumour_in_uncertain_region": 0.964964591874767
+  "missed_tumour_in_uncertain_region": 0.964964591874767,
+  "native_whole_tumour_dice": 0.8422216033696522
 }

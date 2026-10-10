@@ -50,6 +50,13 @@ const axes: Record<string, number[]> = {
 };
 const sliceNames = ['Axial', 'Coronal', 'Sagittal'];
 const layerOrder: LayerId[] = ['prediction', 'truth', 'uncertainty'];
+const scans = {
+  flair: { label: 'FLAIR', name: 'FLAIR' },
+  t1ce: { label: 'T1ce', name: 'T1 with contrast' },
+  t1: { label: 'T1', name: 'T1' },
+  t2: { label: 'T2', name: 'T2' },
+};
+type ScanId = keyof typeof scans;
 
 function rangeValue(value: number | readonly number[]) {
   return Array.isArray(value) ? value[0] : (value as number);
@@ -60,7 +67,7 @@ export default function Viewer({
   shape,
   voxelMm,
 }: {
-  displayMax: number;
+  displayMax: Record<string, number>;
   shape: number[];
   voxelMm: number[];
 }) {
@@ -69,6 +76,7 @@ export default function Viewer({
   const [error, setError] = useState('');
   const [mode, setMode] = useState<Mode>('both');
   const [compact, setCompact] = useState(false);
+  const [scan, setScan] = useState<ScanId>('t1ce');
   const [palette, setPalette] = useState('silver');
   const [brightness, setBrightness] = useState(100);
   const [preset, setPreset] = useState<PresetId>('uncertainty');
@@ -89,6 +97,11 @@ export default function Viewer({
   const sliceCanvas = useRef<HTMLCanvasElement>(null);
   const engines = useRef<{ render: Niivue; slices: Niivue } | null>(null);
   const focusRef = useRef<FocusController | null>(null);
+  const loadedScan = useRef<ScanId>('t1ce');
+  const paletteRef = useRef('silver');
+  useEffect(() => {
+    paletteRef.current = palette;
+  }, [palette]);
 
   useEffect(() => {
     let active = true;
@@ -111,7 +124,8 @@ export default function Viewer({
         isColorbar: false,
         isRadiologicalConvention: true,
         show3Dcrosshair: false,
-        forceDevicePixelRatio: 1,
+        // 0 follows the screen, so Retina displays render at full sharpness.
+        forceDevicePixelRatio: 0,
       };
       const render = new Niivue({
         ...common,
@@ -161,10 +175,11 @@ export default function Viewer({
       const base = import.meta.env.BASE_URL;
       const volumes = [
         {
-          url: `${base}data/flair.nii.gz`,
+          // Contrast T1 shows the sharpest anatomy, so the page opens on it.
+          url: `${base}data/t1ce.nii.gz`,
           colormap: 'gray',
           cal_min: 0,
-          cal_max: displayMax,
+          cal_max: displayMax.t1ce,
         },
         ...layerOrder.map((id) => ({
           url: `${base}data/${LAYERS[id].file}`,
@@ -223,6 +238,51 @@ export default function Viewer({
   }, [displayMax]);
 
   useEffect(() => {
+    const pair = engines.current;
+    if (!ready || !pair || scan === loadedScan.current) return;
+    let active = true;
+    setLoading(true);
+    (async () => {
+      const { NVImage } = await import('@niivue/niivue');
+      const url = `${import.meta.env.BASE_URL}data/${scan}.nii.gz`;
+      // Each engine owns its GL textures, so each needs its own copy.
+      const images = await Promise.all(
+        [pair.render, pair.slices].map(() =>
+          NVImage.loadFromUrl({
+            url,
+            colormap: 'gray',
+            cal_min: 0,
+            cal_max: displayMax[scan],
+          }),
+        ),
+      );
+      if (!active) return;
+      [pair.render, pair.slices].forEach((nv, i) => {
+        const previous = nv.volumes[0];
+        nv.addVolume(images[i]);
+        nv.setVolume(images[i], 0);
+        nv.removeVolume(previous);
+      });
+      pair.render.setColormap(
+        pair.render.volumes[0].id,
+        paletteMaps[paletteRef.current],
+      );
+      loadedScan.current = scan;
+      setBrightness(100);
+      setLoading(false);
+    })().catch((e: unknown) => {
+      if (!active) return;
+      setError(
+        `The ${scans[scan].name} scan could not be loaded: ${e instanceof Error ? e.message : String(e)}`,
+      );
+      setLoading(false);
+    });
+    return () => {
+      active = false;
+    };
+  }, [scan, ready, displayMax]);
+
+  useEffect(() => {
     const query = window.matchMedia('(max-width: 700px)');
     const update = () => setCompact(query.matches);
     update();
@@ -274,15 +334,16 @@ export default function Viewer({
   }, [cut, depth, axis, ready]);
 
   useEffect(() => {
-    if (!ready) return;
+    if (!ready || loading) return;
     const timer = window.setTimeout(() => {
       const nv = engines.current?.render;
       if (!nv?.volumes[0]) return;
-      nv.volumes[0].cal_max = (displayMax * 100) / brightness;
+      nv.volumes[0].cal_max =
+        (displayMax[loadedScan.current] * 100) / brightness;
       nv.updateGLVolume();
     }, 100);
     return () => clearTimeout(timer);
-  }, [brightness, ready, displayMax]);
+  }, [brightness, ready, loading, displayMax]);
 
   useEffect(() => {
     const nv = engines.current?.slices;
@@ -369,8 +430,29 @@ export default function Viewer({
             Training <span>070</span>
           </h1>
           <p className="study-meta">
-            FLAIR <span>·</span> glioma <span>·</span> {shape.join(' × ')}
+            {scans[scan].name} <span>·</span> glioma <span>·</span>{' '}
+            {shape.join(' × ')}
           </p>
+
+          <div className="control-heading layer-heading">
+            <span className="eyebrow">SCAN</span>
+            <span className="tiny-badge">1 mm</span>
+          </div>
+          <ToggleGroup
+            value={[scan]}
+            onValueChange={(v) => {
+              if (v[0]) setScan(v[0] as ScanId);
+            }}
+            className="axis-buttons preset-buttons"
+            aria-label="MRI sequence"
+            disabled={loading}
+          >
+            {(Object.keys(scans) as ScanId[]).map((id) => (
+              <ToggleGroupItem value={id} key={id} title={scans[id].name}>
+                {scans[id].label}
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
 
           <div className="control-heading layer-heading">
             <span className="eyebrow">STORY</span>
@@ -670,8 +752,8 @@ export default function Viewer({
               <output className="scan-loading" aria-live="polite">
                 <LoaderCircle size={29} className="spin" />
                 <strong>Building the volume</strong>
-                <span>BraTS 2020 · case 070</span>
-                <small>FLAIR, prediction, expert labels and uncertainty</small>
+                <span>BraTS 2020 · case 070 · {scans[scan].name}</span>
+                <small>Scan, prediction, expert labels and uncertainty</small>
               </output>
             )}
             {error && (

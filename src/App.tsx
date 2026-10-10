@@ -87,8 +87,8 @@ export default function App() {
           />
           <div className="below-viewer">
             <span>
-              BraTS 2020 training case {stats.case} · FLAIR resampled to the
-              model&apos;s 128 × 128 grid
+              BraTS 2020 training case {stats.case} · scans at 1 mm; model
+              outputs mapped from its 128 × 128 grid
             </span>
             <span>Research visualisation · not for diagnosis</span>
           </div>
