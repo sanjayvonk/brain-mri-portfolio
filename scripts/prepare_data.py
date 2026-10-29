@@ -165,7 +165,9 @@ for z in range(labels.shape[2]):
             "caught": caught,
         }
 stats["missed_slice"] = best
-(out / "stats.json").write_text(json.dumps(stats, indent=2))
+(Path(__file__).resolve().parents[1] / "src" / "data" / "stats.json").write_text(
+    json.dumps(stats, indent=2)
+)
 
 # Slice images for that figure, from the native display volumes, cropped to
 # the brain and stored as rows top to bottom, anterior first, patient right on

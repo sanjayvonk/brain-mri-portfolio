@@ -1,7 +1,7 @@
 // Adapted from OpenMRI's study viewer (MIT, © 2026 Maksim Khuzin).
 // See THIRD_PARTY_NOTICES.md.
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { Niivue } from '@niivue/niivue';
+import type { Niivue, SLICE_TYPE } from '@niivue/niivue';
 import type { FocusController } from './focus-controller';
 import { patchOverlayBlending } from './niivue-patch';
 import {
@@ -21,25 +21,30 @@ import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import {
-  CLASS_NAMES,
-  LAYERS,
-  type LayerId,
-  PRESETS,
-  type PresetId,
-} from './layers';
+import { LAYERS, type LayerId } from './layers';
 
 type Mode = 'both' | 'volume' | 'slices';
-type Point = { mm: number[]; frac: number[] };
-type Probe = { flair: number; prediction: number; truth: number; set: number };
+type Point = { mm: number[] };
 
 const axes: Record<string, number[]> = {
   sagittal: [270, 0],
-  coronal: [0, 0],
+  coronal: [180, 0],
   axial: [0, 90],
+};
+const uncertaintyGlowMap = {
+  I: [0, 25, 80, 150, 215, 255],
+  R: [0, 170, 235, 255, 255, 255],
+  G: [0, 25, 55, 110, 165, 205],
+  B: [0, 18, 30, 50, 95, 150],
+  A: [0, 4, 18, 45, 90, 140],
 };
 const sliceNames = ['Axial', 'Coronal', 'Sagittal'];
 const layerOrder: LayerId[] = ['prediction', 'truth', 'uncertainty'];
+const overlayOptions: { id: LayerId; label: string }[] = [
+  { id: 'prediction', label: 'Model' },
+  { id: 'uncertainty', label: 'Uncertainty' },
+  { id: 'truth', label: 'Expert' },
+];
 const scans = {
   flair: { label: 'FLAIR', name: 'FLAIR' },
   t1ce: { label: 'T1ce', name: 'T1 with contrast' },
@@ -55,11 +60,11 @@ function rangeValue(value: number | readonly number[]) {
 export default function Viewer({
   displayMax,
   shape,
-  voxelMm,
+  onInitialLoad,
 }: {
   displayMax: Record<string, number>;
   shape: number[];
-  voxelMm: number[];
+  onInitialLoad: (status: 'ready' | 'error') => void;
 }) {
   const [ready, setReady] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -68,9 +73,8 @@ export default function Viewer({
   const [compact, setCompact] = useState(false);
   const [scan, setScan] = useState<ScanId>('t1ce');
   const [brightness, setBrightness] = useState(100);
-  const [preset, setPreset] = useState<PresetId>('uncertainty');
   const [visible, setVisible] = useState<Record<LayerId, boolean>>(
-    PRESETS.uncertainty.layers,
+    { prediction: true, truth: false, uncertainty: true },
   );
   const [overlayOpacity, setOverlayOpacity] = useState(75);
   const [cut, setCut] = useState(true);
@@ -83,19 +87,29 @@ export default function Viewer({
   const [slicesShare, setSlicesShare] = useState(0.28);
   const stageRef = useRef<HTMLDivElement>(null);
   const [point, setPoint] = useState<Point | null>(null);
-  const [hasFocus, setHasFocus] = useState(false);
-  const [probe, setProbe] = useState<Probe | null>(null);
   const renderCanvas = useRef<HTMLCanvasElement>(null);
   const glowCanvas = useRef<HTMLCanvasElement>(null);
   const sliceCanvas = useRef<HTMLCanvasElement>(null);
-  const engines = useRef<{ render: Niivue; slices: Niivue } | null>(null);
+  const sliceGlowCanvas = useRef<HTMLCanvasElement>(null);
+  const engines = useRef<{
+    render: Niivue;
+    slices: Niivue;
+    glow: Niivue;
+    glowSlices: Niivue;
+  } | null>(null);
   const focusRef = useRef<FocusController | null>(null);
   const loadedScan = useRef<ScanId>('t1ce');
 
   useEffect(() => {
     let active = true;
-    let allocated: { render: Niivue; slices: Niivue } | null = null;
+    let allocated: Partial<{
+      render: Niivue;
+      slices: Niivue;
+      glow: Niivue;
+      glowSlices: Niivue;
+    }> = {};
     let glow: Niivue | null = null;
+    let glowSlices: Niivue | null = null;
     let focus: FocusController | null = null;
     async function setup() {
       const [{ Niivue }, { FocusController }] = await Promise.all([
@@ -106,7 +120,8 @@ export default function Viewer({
         !active ||
         !renderCanvas.current ||
         !sliceCanvas.current ||
-        !glowCanvas.current
+        !glowCanvas.current ||
+        !sliceGlowCanvas.current
       )
         return;
       patchOverlayBlending();
@@ -157,25 +172,36 @@ export default function Viewer({
         isOrientCube: false,
         isClipAllVolumes: true,
       });
+      allocated.glow = glow;
       await glow.attachToCanvas(glowCanvas.current);
       if (!active) return;
       glow.setSliceType(4);
       // Faint red through orange to a hot, near-white core.
-      glow.addColormap('uncertaintyGlow', {
-        I: [0, 25, 80, 150, 215, 255],
-        R: [0, 170, 235, 255, 255, 255],
-        G: [0, 25, 55, 110, 165, 205],
-        B: [0, 18, 30, 50, 95, 150],
-        A: [0, 4, 18, 45, 90, 140],
-      });
+      glow.addColormap('uncertaintyGlow', uncertaintyGlowMap);
       glow.setClipPlaneColor([0, 0, 0, 0]);
       render.setClipPlaneColor([0.7, 0.95, 0.82, -0.05]);
-      slices.setCustomLayout(
-        [0, 1, 2].map((sliceType, i) => ({
-          sliceType,
-          position: [0, i / 3, 1, 1 / 3],
-        })),
-      );
+      glowSlices = new Niivue({
+        ...common,
+        backColor: [0, 0, 0, 0],
+        crosshairColor: [1, 0.72, 0.16, 0],
+        isOrientCube: false,
+        isOrientationTextVisible: false,
+        interactive: false,
+      });
+      allocated.glowSlices = glowSlices;
+      await glowSlices.attachToCanvas(sliceGlowCanvas.current);
+      if (!active) return;
+      glowSlices.addColormap('uncertaintyGlow', uncertaintyGlowMap);
+      glowSlices.setSliceType(0);
+      const sliceLayout: {
+        sliceType: SLICE_TYPE;
+        position: [number, number, number, number];
+      }[] = [0, 1, 2].map((sliceType, i) => ({
+        sliceType: sliceType as SLICE_TYPE,
+        position: [0, i / 3, 1, 1 / 3],
+      }));
+      slices.setCustomLayout(sliceLayout);
+      glowSlices.setCustomLayout(sliceLayout);
 
       const base = import.meta.env.BASE_URL;
       const scanVolume = [
@@ -204,6 +230,14 @@ export default function Viewer({
             cal_max: 255,
           },
         ]),
+        glowSlices.loadVolumes([
+          {
+            url: `${base}data/${glowFile.file}`,
+            colormap: glowFile.colormap,
+            cal_min: 1,
+            cal_max: 255,
+          },
+        ]),
       ]);
       const failed = loads.find((result) => result.status === 'rejected');
       if (failed?.status === 'rejected') throw failed.reason;
@@ -214,14 +248,26 @@ export default function Viewer({
         );
         nv.updateGLVolume();
       }
+      glowSlices.volumes[0].opacity = 1;
+      glowSlices.updateGLVolume();
       await render.setVolumeRenderIllumination(0.45);
       await render.setGradientOpacity(0.12, 0.06);
       if (!active) return;
 
+      const sliceGlowEngine = glowSlices;
+      const drawSlicesCore = slices.drawSceneCore;
+      slices.drawSceneCore = () => {
+        const result = drawSlicesCore.call(slices);
+        sliceGlowEngine.scene.crosshairPos = [...slices.scene.crosshairPos];
+        sliceGlowEngine.scene.pan2Dxyzmm = [
+          ...slices.scene.pan2Dxyzmm,
+        ] as typeof sliceGlowEngine.scene.pan2Dxyzmm;
+        sliceGlowEngine.drawScene();
+        return result;
+      };
       focus = new FocusController(render, slices, (location) => {
         if (!active) return;
-        setPoint({ mm: location.mm, frac: location.frac });
-        setHasFocus(location.visible);
+        setPoint(location.visible ? { mm: location.mm } : null);
       });
       focusRef.current = focus;
       // Keep the glow engine's camera and cut plane on the main 3D view's,
@@ -237,11 +283,12 @@ export default function Viewer({
         glowEngine.setClipPlane(render.scene.clipPlaneDepthAziElevs[0]);
         return result;
       };
-      engines.current = allocated;
+      engines.current = { render, slices, glow, glowSlices };
       // Open on an axial level through the tumour.
       focus.reset([0.5, 0.5, 0.55]);
       setReady(true);
       setLoading(false);
+      onInitialLoad('ready');
     }
     setup().catch((e: unknown) => {
       if (!active) return;
@@ -250,17 +297,19 @@ export default function Viewer({
         `3D rendering could not start: ${message}. Open the page in a browser with WebGL 2 enabled.`,
       );
       setLoading(false);
+      onInitialLoad('error');
     });
     return () => {
       active = false;
       focus?.dispose();
       focusRef.current = null;
       engines.current = null;
-      allocated?.render.cleanup();
-      allocated?.slices.cleanup();
-      glow?.cleanup();
+      allocated.render?.cleanup();
+      allocated.slices?.cleanup();
+      allocated.glow?.cleanup();
+      allocated.glowSlices?.cleanup();
     };
-  }, [displayMax]);
+  }, [displayMax, onInitialLoad]);
 
   useEffect(() => {
     const pair = engines.current;
@@ -313,15 +362,18 @@ export default function Viewer({
 
   useEffect(() => {
     if (!ready) return;
-    engines.current?.slices.setCustomLayout(
-      [0, 1, 2].map((sliceType, i) => ({
-        sliceType,
+    const layout: {
+      sliceType: SLICE_TYPE;
+      position: [number, number, number, number];
+    }[] = [0, 1, 2].map((sliceType, i) => ({
+        sliceType: sliceType as SLICE_TYPE,
         position:
           (mode === 'slices' && !compact) || (mode === 'both' && compact)
             ? [i / 3, 0, 1 / 3, 1]
             : [0, i / 3, 1, 1 / 3],
-      })),
-    );
+      }));
+    engines.current?.slices.setCustomLayout(layout);
+    engines.current?.glowSlices.setCustomLayout(layout);
     const timer = window.setTimeout(
       () => window.dispatchEvent(new Event('resize')),
       80,
@@ -334,8 +386,8 @@ export default function Viewer({
     if (!pair || !ready) return;
     for (const nv of [pair.render, pair.slices]) {
       layerOrder.forEach((id, i) => {
-        // In 3D the uncertainty comes from the glow canvas instead.
-        const glows = nv === pair.render && LAYERS[id].glow3d;
+        // Uncertainty uses the matching glow canvases in 3D and slices.
+        const glows = id === 'uncertainty';
         nv.volumes[i + 1].opacity =
           visible[id] && !glows
             ? (overlayOpacity / 100) * LAYERS[id].weight
@@ -362,25 +414,6 @@ export default function Viewer({
     }, 100);
     return () => clearTimeout(timer);
   }, [brightness, ready, loading, displayMax]);
-
-  useEffect(() => {
-    const nv = engines.current?.slices;
-    if (!nv || !point || !ready) return;
-    const read = (i: number) => {
-      const vol = nv.volumes[i];
-      // getValue reads RAS voxel indices; the focus is a RAS fraction.
-      const [x, y, z] = point.frac.map((f, d) =>
-        Math.round(f * vol.dimsRAS![d + 1] - 0.5),
-      );
-      return Math.round(vol.getValue(x, y, z));
-    };
-    setProbe({
-      flair: read(0),
-      prediction: read(1),
-      truth: read(2),
-      set: read(3),
-    });
-  }, [point, ready]);
 
   useEffect(() => {
     if (!rotate || !ready) return;
@@ -413,9 +446,8 @@ export default function Viewer({
     return () => window.removeEventListener('keydown', key);
   }, []);
 
-  const choosePreset = useCallback((id: PresetId) => {
-    setPreset(id);
-    setVisible(PRESETS[id].layers);
+  const showUncertainty = useCallback(() => {
+    setVisible({ prediction: true, truth: false, uncertainty: true });
   }, []);
 
   // Other parts of the page can point the viewer at a location.
@@ -424,18 +456,23 @@ export default function Viewer({
       const frac = (event as CustomEvent<{ frac: [number, number, number] }>)
         .detail?.frac;
       if (!frac || !ready) return;
-      choosePreset('uncertainty');
+      const axialFocus: [number, number, number] = [
+        frac[0],
+        frac[1],
+        Math.min(1, frac[2] + 3 / shape[2]),
+      ];
+      showUncertainty();
       setMode('both');
-      focusRef.current?.moveTo(frac);
+      setAxis('axial');
+      setDepth(Math.round((axialFocus[2] - 0.5) * 100));
+      setCut(true);
+      setRotate(false);
+      engines.current?.render.setRenderAzimuthElevation(0, 90);
+      focusRef.current?.moveTo(axialFocus);
     };
     window.addEventListener('viewer:focus', go);
     return () => window.removeEventListener('viewer:focus', go);
-  }, [ready, choosePreset]);
-
-  const toggleLayer = (id: LayerId) => {
-    setPreset('custom');
-    setVisible((v) => ({ ...v, [id]: !v[id] }));
-  };
+  }, [ready, showUncertainty, shape]);
 
   const reset = useCallback(() => {
     setCut(true);
@@ -443,6 +480,7 @@ export default function Viewer({
     setAxis('sagittal');
     setRotate(false);
     setBrightness(100);
+    focusRef.current?.reset([0.5, 0.5, 0.55]);
     engines.current?.render.setRenderAzimuthElevation(120, 14);
     engines.current?.render.setScale(1.05);
   }, []);
@@ -460,13 +498,9 @@ export default function Viewer({
           <h1 className="case-title">
             Brain <span>glioma</span>
           </h1>
-          <p className="study-meta">
-            {scans[scan].name} <span>·</span> {shape.join(' × ')}
-          </p>
 
           <div className="control-heading layer-heading">
             <span className="eyebrow">SCAN</span>
-            <span className="tiny-badge">1 mm</span>
           </div>
           <ToggleGroup
             value={[scan]}
@@ -485,53 +519,30 @@ export default function Viewer({
           </ToggleGroup>
 
           <div className="control-heading layer-heading">
-            <span className="eyebrow">STORY</span>
+            <span className="eyebrow">OVERLAY</span>
           </div>
           <ToggleGroup
-            value={[preset]}
-            onValueChange={(v) => {
-              if (v[0]) choosePreset(v[0] as PresetId);
-            }}
-            className="axis-buttons preset-buttons"
-            aria-label="What to show"
+            multiple
+            value={overlayOptions
+              .filter(({ id }) => visible[id])
+              .map(({ id }) => id)}
+            onValueChange={(selected) =>
+              setVisible({
+                prediction: selected.includes('prediction'),
+                uncertainty: selected.includes('uncertainty'),
+                truth: selected.includes('truth'),
+              })
+            }
+            className="axis-buttons preset-buttons overlay-buttons"
+            aria-label="Overlay"
           >
-            {(Object.keys(PRESETS) as PresetId[])
-              .filter((id) => id !== 'custom')
-              .map((id) => (
-                <ToggleGroupItem value={id} key={id}>
-                  {PRESETS[id].label}
-                </ToggleGroupItem>
-              ))}
+            {overlayOptions.map(({ id, label }) => (
+              <ToggleGroupItem value={id} key={id}>
+                {label}
+              </ToggleGroupItem>
+            ))}
           </ToggleGroup>
-          <p className="muted-text preset-note">{PRESETS[preset].note}</p>
 
-          <section className="series-list" aria-label="Layers">
-            {layerOrder.map((id, index) => {
-              const layer = LAYERS[id];
-              return (
-                <button
-                  className={`series-card layer-card ${visible[id] ? 'selected' : ''}`}
-                  key={id}
-                  onClick={() => toggleLayer(id)}
-                  aria-pressed={visible[id]}
-                  disabled={loading}
-                >
-                  <span className="series-index">
-                    {String(index + 1).padStart(2, '0')}
-                  </span>
-                  <span className="series-text">
-                    <strong>{layer.name}</strong>
-                    <small>{layer.caption}</small>
-                  </span>
-                  <span className="layer-swatches" aria-hidden>
-                    {layer.legend.map((l) => (
-                      <i key={l.label} style={{ background: l.color }} />
-                    ))}
-                  </span>
-                </button>
-              );
-            })}
-          </section>
           <div className="slider-label">
             <span id="overlay-label">Overlay opacity</span>
             <output>{overlayOpacity}%</output>
@@ -607,61 +618,13 @@ export default function Viewer({
                   onValueChange={(v) => setDepth(rangeValue(v))}
                   min={-90}
                   max={90}
-                  step={2}
+                  step={1}
                 />
               </div>
             )}
           </section>
-          <section className="focus-card probe-card">
-            <div className="focus-title">
-              <Crosshair size={17} />
-              <span>At the focus</span>
-              <span className="focus-type">voxel</span>
-            </div>
-            {probe && hasFocus ? (
-              <dl className="probe">
-                <dt>Model</dt>
-                <dd>
-                  <i style={{ background: CLASS_NAMES[probe.prediction]?.color }} />
-                  {CLASS_NAMES[probe.prediction]?.name ?? '—'}
-                </dd>
-                <dt>Expert</dt>
-                <dd>
-                  <i style={{ background: CLASS_NAMES[probe.truth]?.color }} />
-                  {CLASS_NAMES[probe.truth]?.name ?? '—'}
-                </dd>
-                <dt>Set size</dt>
-                <dd>
-                  <b>{probe.set || 1}</b>
-                  {probe.set > 1
-                    ? ` of 4 classes · uncertain`
-                    : ' class · confident'}
-                </dd>
-              </dl>
-            ) : (
-              <p>
-                Click a slice. The model&apos;s label, the expert&apos;s label
-                and the conformal set size at that voxel appear here.
-              </p>
-            )}
-          </section>
         </aside>
         <section className="viewer-workspace" aria-label="MRI viewer">
-          <div className="viewer-toolbar">
-            <div className="active-series">
-              <span className="eyebrow">CURRENT VIEW</span>
-              <h2>{PRESETS[preset].title}</h2>
-            </div>
-            <div className="toolbar-actions">
-              <button
-                className="icon-button"
-                aria-label={immersive ? 'Exit full view' : 'Expand the viewer'}
-                onClick={() => setImmersive(!immersive)}
-              >
-                {immersive ? <X size={18} /> : <Maximize2 size={18} />}
-              </button>
-            </div>
-          </div>
           <div className="view-options">
             <Tabs value={mode} onValueChange={(v) => setMode(v as Mode)}>
               <TabsList className="view-tabs" aria-label="View mode">
@@ -679,10 +642,15 @@ export default function Viewer({
                 </TabsTrigger>
               </TabsList>
             </Tabs>
-            <span className="voxel-label">
-              {voxelMm.map((v) => Number(v.toFixed(3))).join(' × ')} mm{' '}
-              <span>· voxel</span>
-            </span>
+            <div className="toolbar-actions">
+              <button
+                className="icon-button"
+                aria-label={immersive ? 'Exit full view' : 'Expand the viewer'}
+                onClick={() => setImmersive(!immersive)}
+              >
+                {immersive ? <X size={18} /> : <Maximize2 size={18} />}
+              </button>
+            </div>
           </div>
           <div
             ref={stageRef}
@@ -748,13 +716,6 @@ export default function Viewer({
                 ref={renderCanvas}
                 aria-label="3D volume rendering of the MRI with the tumour overlays. Drag to rotate, scroll to zoom."
               />
-              <div className="render-label">
-                <span className="status-dot" />
-                <span>VOLUME RENDERING</span>
-              </div>
-              <div className="render-subtitle">
-                {cut ? 'Cut' : 'Full volume'}
-              </div>
               <div className="legend" aria-label="Legend">
                 {activeLayers.flatMap((id) =>
                   LAYERS[id].legend.map((l) => (
@@ -799,6 +760,14 @@ export default function Viewer({
                 ref={sliceCanvas}
                 aria-label="Three MRI slices. Click to pick a point, scroll to move the slice."
               />
+              <canvas
+                ref={sliceGlowCanvas}
+                className="slice-glow-canvas"
+                aria-hidden
+                style={{
+                  opacity: visible.uncertainty ? overlayOpacity / 100 : 0,
+                }}
+              />
               {sliceNames.map((name, i) => (
                 <div className={`slice-overlay slice-${i}`} key={name}>
                   <span className="slice-label">
@@ -825,28 +794,18 @@ export default function Viewer({
               </div>
             )}
           </div>
-          <footer className="viewer-footer">
-            <div>
-              <span className={`status-dot ${loading ? 'pending' : ''}`} />
-              <span>
-                {loading ? 'Preparing' : error ? 'Load error' : 'Case open'}
-              </span>
-              <span className="footer-separator" />
-              <span>{shape.join(' × ')} px</span>
-            </div>
-            <div className="coordinate-readout">
-              <Crosshair size={13} />
-              {point ? (
-                point.mm.map((v, i) => (
+          <footer className="viewer-footer" aria-live="polite">
+            {point && (
+              <div className="coordinate-readout">
+                <Crosshair size={13} />
+                {point.mm.map((v, i) => (
                   <span key={i}>
                     <b>{['X', 'Y', 'Z'][i]}</b> {v.toFixed(1)}
                   </span>
-                ))
-              ) : (
-                <span>Pick a point on a slice</span>
-              )}
-              <span>mm</span>
-            </div>
+                ))}
+                <span>mm</span>
+              </div>
+            )}
           </footer>
         </section>
       </div>

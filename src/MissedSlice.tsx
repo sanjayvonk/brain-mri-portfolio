@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { Crosshair } from 'lucide-react';
 import { EDEMA, ENHANCING, NECROTIC, SET } from './layers';
 
 type SliceData = {
@@ -78,8 +77,10 @@ function draw(
 
 export default function MissedSlice({
   counts,
+  onShowInViewer,
 }: {
   counts: { z: number; tumour: number; found: number; missed: number; caught: number };
+  onShowInViewer: (frac: [number, number, number]) => void;
 }) {
   const [data, setData] = useState<SliceData | null>(null);
   const canvases = useRef<(HTMLCanvasElement | null)[]>([]);
@@ -116,16 +117,14 @@ export default function MissedSlice({
 
   const showInViewer = () => {
     if (!data) return;
-    window.dispatchEvent(
-      new CustomEvent('viewer:focus', { detail: { frac: data.focus } }),
-    );
+    onShowInViewer(data.focus);
     document.getElementById('viewer')?.scrollIntoView({ behavior: 'smooth' });
   };
 
   return (
     <section id="missed" className="content-section missed-section">
       <header>
-        <span className="eyebrow">CASE STUDY · ONE SLICE</span>
+        <span className="eyebrow">CASE STUDY</span>
         <h2>A tumour the model missed, and the uncertainty caught</h2>
       </header>
       <p className="missed-lead">
@@ -156,14 +155,9 @@ export default function MissedSlice({
         ))}
       </div>
       <div className="missed-footer">
-        <button className="export-button missed-button" onClick={showInViewer}>
-          <Crosshair size={15} />
-          <span>Show this slice in the viewer</span>
+        <button type="button" className="missed-button" onClick={showInViewer}>
+          <span>Show in viewer</span>
         </button>
-        <p>
-          Counts on the model&apos;s 128 × 128 grid; images at 1 mm with the
-          overlays smoothed for display. Patient right is on the right.
-        </p>
       </div>
     </section>
   );

@@ -9,9 +9,9 @@ export const TRUTH: [number, number, number][] = [
   [226, 250, 236],
 ];
 export const SET: [number, number, number][] = [
-  [150, 18, 24],
-  [228, 38, 32],
-  [255, 122, 92],
+  [245, 95, 85],
+  [255, 140, 115],
+  [255, 190, 155],
 ];
 
 const rgb = (c: number[]) => `rgb(${c.join(' ')})`;
@@ -33,7 +33,6 @@ export const CLASS_NAMES: Record<number, { name: string; color: string }> = {
   2: { name: 'Edema', color: rgb(EDEMA) },
   3: { name: 'Enhancing', color: rgb(ENHANCING) },
 };
-
 export type LayerId = 'prediction' | 'truth' | 'uncertainty';
 
 type Layer = {
@@ -76,13 +75,13 @@ export const LAYERS: Record<LayerId, Layer> = {
     name: 'Conformal uncertainty',
     caption: 'Prediction-set size 2–4',
     file: 'uncertainty.nii.gz',
-    weight: 0.7,
+    weight: 1,
     // Values 2, 3 and 4 hold the set size; 0 and 1 stay transparent.
     lut: {
       R: [0, 0, ...SET.map((c) => c[0])],
       G: [0, 0, ...SET.map((c) => c[1])],
       B: [0, 0, ...SET.map((c) => c[2])],
-      A: [0, 0, 150, 230, 255],
+      A: [0, 0, 175, 238, 255],
       I: [0, 1, 2, 3, 4],
       labels: ['', '', '2 classes', '3 classes', '4 classes'],
     },
@@ -92,37 +91,5 @@ export const LAYERS: Record<LayerId, Layer> = {
       { label: '3', color: rgb(SET[1]) },
       { label: '4', color: rgb(SET[2]) },
     ],
-  },
-};
-
-export type PresetId = 'prediction' | 'uncertainty' | 'compare' | 'custom';
-
-export const PRESETS: Record<
-  PresetId,
-  { label: string; title: string; note: string; layers: Record<LayerId, boolean> }
-> = {
-  prediction: {
-    label: 'Model',
-    title: 'U-Net segmentation',
-    note: 'Three tumour sub-regions predicted by the U-Net from FLAIR and T1ce.',
-    layers: { prediction: true, truth: false, uncertainty: false },
-  },
-  uncertainty: {
-    label: 'Uncertainty',
-    title: 'Where the model is unsure',
-    note: 'Voxels whose conformal prediction set holds more than one class. The slices show every uncertain voxel; in 3D the uncertainty glows, brightest where three or four classes remain.',
-    layers: { prediction: true, truth: false, uncertainty: true },
-  },
-  compare: {
-    label: 'vs. expert',
-    title: 'Model against the expert',
-    note: 'Mint is the expert annotation. Where mint shows outside the colours, the model missed tumour.',
-    layers: { prediction: true, truth: true, uncertainty: false },
-  },
-  custom: {
-    label: 'Custom',
-    title: 'Custom layers',
-    note: 'Toggle the layers below.',
-    layers: { prediction: true, truth: false, uncertainty: false },
   },
 };

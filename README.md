@@ -32,8 +32,8 @@ research project's exports and the BraTS 2020 training data with
 python scripts/prepare_data.py "<path>/Research Project" public/data
 ```
 
-which needs `nibabel`, `numpy` and `scipy`. The script also writes `stats.json`, which the page reads
-for its figures.
+which needs `nibabel`, `numpy` and `scipy`. The script writes `stats.json` into
+`src/data/`, which the page reads for its figures.
 
 BraTS data: Menze et al., IEEE TMI 2015; Bakas et al., Scientific Data 2017;
 Bakas et al., arXiv:1811.02629, 2018.
